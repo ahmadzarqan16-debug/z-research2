@@ -72,3 +72,35 @@ test('board KPI success is determined by business state, not written promises',(
  evolve(s,e(3,'advance'),room);
  assert.equal(s.directives[0].status,'achieved');assert.equal(s.passedKpis,1);assert.equal(s.failedKpis,0);
 });
+
+test('renegotiated salary changes the future payroll and employee morale',()=>{
+ const s=initial('01'),room='SALARY99';
+ evolve(s,e(1,'createStartup',{name:'Wage Strategy',industry:'Agency',capital:500}),room);
+ evolve(s,e(2,'hire',{role:'engineer',name:'Team Member',salary:0}),room);
+ const before=s.employees[0].morale;
+ evolve(s,e(3,'changeSalary',{employee:'002',salary:47.5}),room);
+ assert.equal(s.employees[0].salary,47.5);
+ assert.ok(s.employees[0].morale>before);
+ const opening=s.cash;
+ evolve(s,e(4,'advance'),room);
+ assert.ok(s.finance[0].expenses>47.5);
+ assert.ok(s.cash<opening);
+});
+test('unfinished work is reassigned after firing and remains auditable',()=>{
+ const s=initial('01'),room='STAFF123';
+ evolve(s,e(1,'createStartup',{name:'Rebuild',industry:'EdTech',capital:500}),room);
+ evolve(s,e(2,'hire',{role:'engineer',name:'First',salary:1}),room);
+ evolve(s,e(3,'task',{task:'mvp',employee:'002'}),room);
+ evolve(s,e(4,'week'),room);
+ const reports=s.tasks[0].weeklyReports.length;
+ evolve(s,e(5,'fire',{employee:'002'}),room);
+ assert.equal(s.tasks[0].status,'unassigned');
+ evolve(s,e(6,'hire',{role:'engineer',name:'Replacement',salary:20}),room);
+ evolve(s,e(7,'reassignTask',{task:'003',employee:'006'}),room);
+ assert.equal(s.tasks[0].owner,'006');
+ assert.equal(s.employees[0].taskId,'003');
+ evolve(s,e(8,'week'),room);
+ assert.equal(s.tasks[0].weeklyReports.length,reports+1);
+ assert.ok(s.tasks[0].weeklyReports.some(r=>r.employee==='First'));
+ assert.ok(s.tasks[0].weeklyReports.some(r=>r.employee==='Replacement'));
+});

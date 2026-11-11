@@ -2,7 +2,7 @@ import {randomBytes,createHmac,scryptSync,timingSafeEqual} from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {get,put,list} from '@vercel/blob';
-import {replay,ROLES,TASKS,CHANNELS,INDUSTRIES} from '../lib/sim.js';
+import {replay,ROLES,TASKS,CHANNELS,INDUSTRIES,KPI_METRICS} from '../lib/sim.js';
 const alphabet="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const rid=()=>randomBytes(10).toString("hex");
 const code=()=>Array.from(randomBytes(8),x=>alphabet[x%alphabet.length]).join("");
@@ -120,19 +120,19 @@ if(op==="state"&&req.method==="GET"){
   const group=user.role==="founder"?user.group:String(req.query.group||"");
   if(group){
    if(!validGroup(group)||user.role==="founder"&&group!==user.group)return failure(res,403,"Tidak berhak melihat kelompok lain");
-   return res.json({role:user.role,group,state:await stateFor(user.room,group),catalog:{roles:ROLES,tasks:TASKS,channels:CHANNELS,industries:INDUSTRIES}});
+   return res.json({role:user.role,group,state:await stateFor(user.room,group),catalog:{roles:ROLES,tasks:TASKS,channels:CHANNELS,industries:INDUSTRIES,kpis:KPI_METRICS}});
   }
   if(user.role!=="lecturer")return failure(res,403,"Akses dosen diperlukan");
   const claims=await findKeys(base+"claims/");
   const groups=claims.map(x=>x.match(/(\d\d)\.json$/)?.[1]).filter(validGroup);
-  const states=await Promise.all(groups.map(async g=>{const s=await stateFor(user.room,g);return {group:g,company:s.company,industry:s.industry,cash:s.cash,month:s.month,customers:s.customers,score:s.score,profit:s.profit,payroll:s.payroll,confidence:s.confidence,bankrupt:s.bankrupt,employees:s.employees.length,pending:s.requests.filter(x=>x.status==="pending").length}}));
+  const states=await Promise.all(groups.map(async g=>{const s=await stateFor(user.room,g);return {group:g,company:s.company,industry:s.industry,cash:s.cash,month:s.month,customers:s.customers,score:s.score,profit:s.profit,payroll:s.payroll,confidence:s.confidence,bankrupt:s.bankrupt,employees:s.employees.length,fundingFrozen:s.fundingFrozen,openKpis:s.directives.filter(d=>d.status==="open").length,failedKpis:s.failedKpis,qaPending:s.tasks.filter(t=>t.status==="pending_review"||t.status==="needs_rework").length,pending:s.requests.filter(x=>x.status==="pending").length}}));
   const board=await findKeys(base+"board/");const all=await Promise.all(board.map(readKey));
-  return res.json({role:"lecturer",room:user.room,className:(await readKey(base+"meta.json"))?.className,teams:states.sort((a,b)=>a.group.localeCompare(b.group)),board:all.filter(Boolean).slice(-30),catalog:{roles:ROLES,tasks:TASKS,channels:CHANNELS,industries:INDUSTRIES}});
+  return res.json({role:"lecturer",room:user.room,className:(await readKey(base+"meta.json"))?.className,teams:states.sort((a,b)=>a.group.localeCompare(b.group)),board:all.filter(Boolean).slice(-30),catalog:{roles:ROLES,tasks:TASKS,channels:CHANNELS,industries:INDUSTRIES,kpis:KPI_METRICS}});
  }
  if(op==="action"&&req.method==="POST"){
   const type=String(p.type||"");const d=p.data||{};
-  const founderActions=["createStartup","hire","fire","task","week","campaign","price","note","fundingRequest","accept","reject","answer","move"];
-  const lecturerActions=["offer","pressure","shock","advance"];
+  const founderActions=["createStartup","hire","fire","task","reassignTask","week","reviewWork","rework","campaign","price","note","fundingRequest","accept","reject","answer","move"];
+  const lecturerActions=["offer","pressure","relief","shock","advance"];
   if(user.role==="founder"&&!founderActions.includes(type)||user.role==="lecturer"&&!lecturerActions.includes(type))return failure(res,403,"Aksi tidak diizinkan bagi peran ini");
   let group=user.group;let target=null;
   if(user.role==="lecturer"){target=type==="advance"?"all":type==="shock"&&d.group==="all"?"all":String(d.group||"");if(target!=="all"&&!validGroup(target))return failure(res,400,"Pilih kelompok 01–19 atau all untuk market shock");group=target;}
@@ -141,22 +141,26 @@ if(op==="state"&&req.method==="GET"){
    if(type!=="createStartup"&&!s.company)return failure(res,409,"Buat startup terlebih dahulu");
    if(type==="createStartup"&&s.company)return failure(res,409,"Startup sudah dibuat");
    if(type==="createStartup"&&(!plain(d.name,45)||!INDUSTRIES[d.industry]||!num(d.capital,50,1000)))return failure(res,400,"Nama, industri dan modal Rp50–1000 juta diperlukan");
-   if(type==="hire"&&(!ROLES[d.role]||s.employees.length>=24||s.cash<ROLES[d.role].salary*.3))return failure(res,400,"Kandidat tidak valid, tim penuh, atau kas tidak mencukupi");
+   if(type==="hire"&&(!ROLES[d.role]||s.employees.length>=24||d.salary===undefined||d.salary===""||!num(d.salary,0,1000000000)||s.cash<Math.round(Number(d.salary)*30)/100))return failure(res,400,"Masukkan gaji bulanan ≥0 (Rp juta), tim maksimal 24, dan siapkan biaya rekrut 30% dari gaji");
    if(type==="fire"&&!s.employees.some(x=>x.id===d.employee))return failure(res,400,"Karyawan tidak ditemukan");
    if(type==="task"&&(!TASKS[d.task]||!s.employees.some(x=>x.id===d.employee&&!x.taskId)||s.cash<TASKS[d.task].cost))return failure(res,400,"Tugas/karyawan tidak valid atau kas tidak cukup");
+   if(type==="reassignTask"&&(!s.tasks.some(t=>t.id===d.task&&t.status==="unassigned")||!s.employees.some(w=>w.id===d.employee&&!w.taskId)))return failure(res,400,"Pilih proyek tanpa penanggung jawab dan karyawan yang tersedia");
+   if(type==="reviewWork"&&!s.tasks.some(t=>t.id===d.task&&t.status==="pending_review"))return failure(res,400,"Proyek belum siap diuji kualitasnya");
+   if(type==="rework"&&(!s.tasks.some(t=>t.id===d.task&&t.status==="needs_rework"&&s.cash>=Math.round((TASKS[t.type]?.cost||0)*20)/100)||!s.employees.some(w=>w.taskId===d.task)))return failure(res,400,"Proyek belum membutuhkan revisi, karyawan tidak tersedia, atau dana revisi tidak mencukupi");
    if(type==="week"&&s.week>4)return failure(res,409,"Empat pekan selesai. Dosen harus memajukan bulan");
    if(type==="campaign"&&(!CHANNELS[d.channel]||!num(d.budget,1,200)||s.cash<+d.budget))return failure(res,400,"Anggaran kampanye tidak valid atau kas tidak cukup");
    if(type==="price"&&!num(d.price,.2,20))return failure(res,400,"Harga harus Rp0,2–20 juta");
    if(type==="fundingRequest"&&(!num(d.amount,20,3000)||!num(d.equity,1,70)||!plain(d.reason,900)))return failure(res,400,"Proposal pendanaan tidak valid");
+   if(type==="accept"&&s.fundingFrozen)return failure(res,409,"INVESTOR FUNDING FREEZE: KPI gagal. Pendanaan ditahan sampai bulan "+s.fundingFreezeUntil+" atau dosen melepaskan pembekuan.");
    if(type==="accept"&&!s.offers.some(o=>o.id===d.offer&&o.status==="open"))return failure(res,400,"Term sheet tidak tersedia");
    if(type==="reject"&&!s.offers.some(o=>o.id===d.offer&&o.status==="open"))return failure(res,400,"Term sheet tidak tersedia");
-   if(type==="answer"&&(!plain(d.text,1200)||!s.notes.some(q=>q.id===d.pressure&&q.kind==="INVESTOR KPI")))return failure(res,400,"Jawaban investor tidak valid");
+   if(type==="answer"&&(!plain(d.text,1200)||!s.notes.some(q=>q.id===d.pressure&&q.kind==="INVESTOR KPI"&&!q.answered)))return failure(res,400,"Jawaban tidak valid atau investor sudah dijawab");
    if(type==="note"&&!plain(d.text,1500))return failure(res,400,"Catatan tidak boleh kosong");
    if(type==="move"&&(!num(d.x,40,880)||!num(d.y,75,470)))return failure(res,400,"Posisi tidak valid");
    if(s.bankrupt&&!["note","fundingRequest","move","reject","createStartup"].includes(type))return failure(res,409,"Startup bangkrut. Konsultasikan dengan dosen");
   }
   if(type==="offer"&&(!num(d.amount,20,3000)||!num(d.equity,1,65)))return failure(res,400,"Pendanaan dan equity tidak valid");
-  if(type==="pressure"&&(!plain(d.text,900)||!num(d.deadline,1,6)))return failure(res,400,"Instruksi investor tidak valid");
+  if(type==="pressure"&&(!plain(d.text,900)||!num(d.deadline,1,6)||!KPI_METRICS[d.metric]||d.target===""||!num(d.target,0,1000000000)))return failure(res,400,"Tekanan investor wajib memiliki KPI terukur, target numerik, deadline 1–6 bulan dan instruksi");
   if(type==="shock"&&(!num(d.multiplier,.35,1.6)||!num(d.duration,1,6)))return failure(res,400,"Market shock tidak valid");
   const event={id:rid(),ts:Date.now(),type,data:d,group:user.group||null,target};
   const file=base+(user.role==="lecturer"?"board/":"events/"+user.group+"/")+String(event.ts)+"-"+event.id+".json";

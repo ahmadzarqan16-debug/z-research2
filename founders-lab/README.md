@@ -40,3 +40,20 @@ Test login across all 19 slots; verify group 01 cannot request group 02 state, t
 
 ## Limitations
 Interactive 2.5D animated office, not physics-based 3D. Realtime updates use adaptive browser polling (16 seconds), not a cross-instance websocket service. No separate student identities within each group. Group PIN is shared among members of the same team, and lecturer PIN must remain private. Always conduct classroom acceptance tests before assessed use.
+
+## Recovery & PIN Reset (11 November 2026)
+
+If lecturer login fails or students report "Kelas tidak ditemukan":
+
+1. Open https://founders-lab-classroom.vercel.app in a new tab and log out of an expired session.
+2. On the login screen click **Forgot Class Code / Reset Lecturer PIN**.
+3. Enter the lecturer setup key configured in Vercel Environment Variables (`SETUP_KEY`). The server lists preserved classrooms (class name and exact eight-character room code).
+4. Select the correct class and set a new **lecturer PIN**. This revokes previously issued lecturer sessions without deleting any students' work.
+5. Inside **Investor Control**, use **Copy Class Code** to share the exact room code with students.
+6. If group PINs are also wrong, click **Reset All 19 Group PINs**, confirm by typing `RESET 19 PINS`, and save the downloaded private CSV. Distribute each PIN only to the corresponding numbered group. The reset revokes the previous founder sessions; startup data, employee tasks, finance events and journals remain unchanged.
+7. Students select Founder, enter the same room code, select 01–19, and use their newly assigned group PINs.
+
+Do not reset the 19 group PINs unless you intend to revoke old group access. Do not share `SETUP_KEY` or lecturer PIN with students. The setup key was previously disclosed in a support message; rotate it in Vercel project settings as soon as the lecturer has recovered access, then deploy again to apply the changed secret.
+
+Class creation is now **write-and-verify**; the server does not return a new room code unless it can read the stored class metadata back. The health endpoint `GET /api/game?op=health` checks that private storage is readable without revealing class codes.
+

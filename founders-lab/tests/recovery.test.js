@@ -1,0 +1,43 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import handler from '../api/game.js';
+async function call(op,data={},tok='',method='POST'){
+ const req={method,headers:tok?{authorization:'Bearer '+tok}:{},body:{op,...data},query:{op,...data}};
+ const res={statusCode:200,setHeader(){},status(v){this.statusCode=v;return this},json(v){this.body=v;return this}};
+ await handler(req,res);return {code:res.statusCode,data:res.body};
+}
+test('room is durable, recoverable and account resets preserve company data',async()=>{
+ const created=await call('createClass',{setupKey:'local-development-key',className:'Recovery QA',pin:'teacher-old-2026'});
+ assert.equal(created.code,200);assert.equal(created.data.verified,true);
+ const room=created.data.room;
+ const recovered=await call('recoverRooms',{setupKey:'local-development-key'});
+ assert.equal(recovered.code,200);
+ assert.ok(recovered.data.rooms.some(x=>x.room===room&&x.className==='Recovery QA'));
+ assert.equal((await call('recoverRooms',{setupKey:'bad-key'})).code,403);
+ const first=await call('join',{room,role:'founder',group:'01',pin:'group-old-private'});
+ assert.equal(first.code,200);
+ const made=await call('action',{type:'createStartup',data:{name:'PersistEd',industry:'EdTech',capital:200}},first.data.token);
+ assert.equal(made.code,200);
+ const oldLecturer=created.data.token;
+ const reset=await call('resetLecturer',{room,setupKey:'local-development-key',newPin:'teacher-new-2026'});
+ assert.equal(reset.code,200);
+ assert.equal((await call('state',{},oldLecturer,'GET')).code,401);
+ assert.equal((await call('state',{},reset.data.token,'GET')).code,200);
+ assert.equal((await call('join',{room,role:'lecturer',pin:'teacher-old-2026'})).code,403);
+ const newLecturer=await call('join',{room,role:'lecturer',pin:'teacher-new-2026'});
+ assert.equal(newLecturer.code,200);
+ assert.equal((await call('resetGroupPins',{confirm:'wrong'},newLecturer.data.token)).code,400);
+ const issued=await call('resetGroupPins',{confirm:'RESET 19 PINS'},newLecturer.data.token);
+ assert.equal(issued.code,200);assert.equal(issued.data.pins.length,19);
+ assert.equal(new Set(issued.data.pins.map(x=>x.pin)).size,19);
+ assert.equal((await call('state',{},first.data.token,'GET')).code,401);
+ const pin01=issued.data.pins.find(x=>x.group==='01').pin;
+ const rejoin=await call('join',{room,role:'founder',group:'01',pin:pin01});
+ assert.equal(rejoin.code,200);
+ const state=await call('state',{},rejoin.data.token,'GET');
+ assert.equal(state.code,200);assert.equal(state.data.state.company,'PersistEd');
+ const other=await call('join',{room,role:'founder',group:'02',pin:issued.data.pins.find(x=>x.group==='02').pin});
+ assert.equal(other.code,200);
+ assert.equal((await call('state',{group:'01'},other.data.token,'GET')).data.state.company,null);
+ const health=await call('health',{},'','GET');assert.equal(health.code,200);assert.equal(health.data.ok,true);
+});

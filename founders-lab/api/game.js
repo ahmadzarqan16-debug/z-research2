@@ -16,17 +16,30 @@ function keyHash(pin,salt){return scryptSync(String(pin),salt,32).toString("hex"
 function checkHash(pin,stored){if(!stored)return false;const [salt,h]=stored.split(":");try{return timingSafeEqual(Buffer.from(keyHash(pin,salt),"hex"),Buffer.from(h,"hex"))}catch{return false}}
 function makeHash(pin){const salt=randomBytes(12).toString("hex");return salt+":"+keyHash(pin,salt)}
 async function readKey(k){if(local){try{return JSON.parse(await fs.readFile(path.join(dir,k),"utf8"))}catch{return null}}
- const response=await get(k,{access:"private",useCache:false});if(!response||response.statusCode!==200)return null;return JSON.parse(await new Response(response.stream).text());}
-async function writeKey(k,obj){if(local){const f=path.join(dir,k);await fs.mkdir(path.dirname(f),{recursive:true});await fs.writeFile(f,JSON.stringify(obj),"utf8");return}
- await put(k,JSON.stringify(obj),{access:"private",addRandomSuffix:false,contentType:"application/json",allowOverwrite:false});}
+ const response=await get(k,{access:"private",useCache:false,token:process.env.BLOB_READ_WRITE_TOKEN});if(!response||response.statusCode!==200)return null;return JSON.parse(await new Response(response.stream).text());}
+async function writeKey(k,obj,{overwrite=false}={}){if(local){const f=path.join(dir,k);await fs.mkdir(path.dirname(f),{recursive:true});await fs.writeFile(f,JSON.stringify(obj),"utf8");return}
+ await put(k,JSON.stringify(obj),{access:"private",addRandomSuffix:false,contentType:"application/json",allowOverwrite,token:process.env.BLOB_READ_WRITE_TOKEN});}
 async function findKeys(prefix){if(local){const all=[];async function walk(p){let children=[];try{children=await fs.readdir(p,{withFileTypes:true})}catch{return}for(const entry of children){const target=path.join(p,entry.name);if(entry.isDirectory())await walk(target);else all.push(path.relative(dir,target))}}await walk(path.join(dir,prefix));return all.sort()}
- let cursor;const paths=[];do{const out=await list({prefix,limit:1000,cursor});paths.push(...out.blobs.map(b=>b.pathname));cursor=out.hasMore?out.cursor:null;}while(cursor&&paths.length<4500);return paths;}
+ let cursor;const paths=[];do{const out=await list({prefix,limit:1000,cursor,token:process.env.BLOB_READ_WRITE_TOKEN});paths.push(...out.blobs.map(b=>b.pathname));cursor=out.hasMore?out.cursor:null;}while(cursor&&paths.length<4500);return paths;}
 const secret=()=>process.env.SESSION_SECRET||(local?"founders-lab-local-dev-rotate-in-production":"");
 function sign(data){const b=Buffer.from(JSON.stringify({...data,exp:Date.now()+1000*60*60*16})).toString("base64url");const mac=createHmac("sha256",secret()).update(b).digest("base64url");return b+"."+mac}
 function token(req){try{const raw=(req.headers.authorization||"").replace(/^Bearer /i,"");const [b,s]=raw.split(".");if(!b||!s||!secret())return null;const expected=createHmac("sha256",secret()).update(b).digest("base64url");if(!timingSafeEqual(Buffer.from(s),Buffer.from(expected)))return null;const d=JSON.parse(Buffer.from(b,"base64url").toString());return d.exp>Date.now()&&validRoom(d.room)&&(d.role==="lecturer"||d.role==="founder"&&validGroup(d.group))?d:null}catch{return null}}
 async function eventsFor(room,group){const base="fl4/"+room+"/";const [own,board]=await Promise.all([findKeys(base+"events/"+group+"/"),findKeys(base+"board/")]);const files=[...own,...board];const all=await Promise.all(files.map(readKey));return all.filter(Boolean).filter(e=>e.target==="all"||e.target===group||!e.target&&e.group===group);}
 async function stateFor(room,group){return replay(room,group,await eventsFor(room,group))}
 function failure(res,code,message){res.status(code).json({error:message})}
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function readWithRetry(path,tries=4){
+ for(let i=0;i<tries;i++){const v=await readKey(path);if(v)return v;if(i<tries-1)await sleep(120*(i+1))}
+ return null;
+}
+async function saveAndVerify(path,payload,overwrite=false){
+ await writeKey(path,payload,{overwrite});
+ const saved=await readWithRetry(path,5);
+ if(!saved||JSON.stringify(saved)!==JSON.stringify(payload))throw Error("Persistensi kelas tidak terkonfirmasi. Silakan ulangi, jangan bagikan kode dulu.");
+ return saved;
+}
+function setupAllowed(k){return typeof k==="string"&&process.env.SETUP_KEY&&k.length===process.env.SETUP_KEY.length&&timingSafeEqual(Buffer.from(k),Buffer.from(process.env.SETUP_KEY))}
+
 export default async function handler(req,res){
  res.setHeader("Cache-Control","no-store, no-cache, must-revalidate");res.setHeader("X-Content-Type-Options","nosniff");
  try{
@@ -36,29 +49,74 @@ export default async function handler(req,res){
  if(op==="createClass"&&req.method==="POST"){
   if(!process.env.SETUP_KEY&&!local)return failure(res,503,"SETUP_KEY belum dikonfigurasi");
   if(!plain(p.pin,64)||p.pin.length<6||!plain(p.className,90))return failure(res,400,"Nama kelas dan PIN dosen minimal 6 karakter diperlukan");
-  if((process.env.SETUP_KEY||"local-development-key")!==p.setupKey)return failure(res,403,"Kode setup dosen salah");
+  if(!setupAllowed(p.setupKey)&&!(local&&p.setupKey==="local-development-key"))return failure(res,403,"Kode setup dosen salah");
   let room=code();while(await readKey("fl4/"+room+"/meta.json"))room=code();
-  await writeKey("fl4/"+room+"/meta.json",{room,className:p.className.trim(),pin:makeHash(p.pin),createdAt:Date.now(),slots:19});
-  return res.json({room,token:sign({room,role:"lecturer"})});
+  const meta={room,className:p.className.trim(),pin:makeHash(p.pin),createdAt:Date.now(),slots:19,rev:0};
+  await saveAndVerify("fl4/"+room+"/meta.json",meta);
+  return res.json({room,className:meta.className,role:"lecturer",token:sign({room,role:"lecturer",rev:0}),verified:true});
  }
- if(op==="join"&&req.method==="POST"){
+ 
+ if(op==="health"&&req.method==="GET"){
+  const paths=await findKeys("fl4/");
+  const metas=paths.filter(p=>/^fl4\/[A-Z2-9]{8}\/meta\.json$/.test(p));
+  const readable=metas.length?!!(await readWithRetry(metas[0],2)):true;
+  return res.json({ok:readable,storage:local?"local":"vercel-blob",roomCount:metas.length,readable});
+ }
+ if(op==="recoverRooms"&&req.method==="POST"){
+  if(!setupAllowed(p.setupKey)&&!(local&&p.setupKey==="local-development-key"))return failure(res,403,"Kode setup dosen tidak sesuai");
+  const files=(await findKeys("fl4/")).filter(p=>/^fl4\/[A-Z2-9]{8}\/meta\.json$/.test(p));
+  const metas=(await Promise.all(files.slice(0,100).map(readKey))).filter(Boolean);
+  return res.json({rooms:metas.map(m=>({room:m.room,className:m.className,createdAt:m.createdAt,slots:m.slots})).sort((a,b)=>b.createdAt-a.createdAt)});
+ }
+ if(op==="resetLecturer"&&req.method==="POST"){
+  const room=String(p.room||"").trim().toUpperCase();
+  if(!validRoom(room)||!plain(p.newPin,64)||p.newPin.length<6)return failure(res,400,"Kode kelas dan PIN dosen baru minimal 6 karakter diperlukan");
+  if(!setupAllowed(p.setupKey)&&!(local&&p.setupKey==="local-development-key"))return failure(res,403,"Kode setup dosen tidak sesuai");
+  const key="fl4/"+room+"/meta.json",meta=await readWithRetry(key);
+  if(!meta)return failure(res,404,"Kelas tidak ditemukan. Gunakan fitur Pulihkan Kelas.");
+  const next={...meta,pin:makeHash(p.newPin),rev:(meta.rev||0)+1};
+  await saveAndVerify(key,next,true);
+  return res.json({room,role:"lecturer",className:meta.className,token:sign({room,role:"lecturer",rev:next.rev}),verified:true});
+ }
+if(op==="join"&&req.method==="POST"){
   const room=String(p.room||"").trim().toUpperCase();if(!validRoom(room))return failure(res,400,"Kode kelas tidak valid");
-  const meta=await readKey("fl4/"+room+"/meta.json");if(!meta)return failure(res,404,"Kelas tidak ditemukan");
+  const meta=await readWithRetry("fl4/"+room+"/meta.json");if(!meta)return failure(res,404,"Kode kelas tidak ditemukan di server. Gunakan menu Pulihkan Kelas milik dosen untuk melihat kode yang benar.");
   if(p.role==="lecturer"){
    if(!checkHash(p.pin,meta.pin))return failure(res,403,"PIN dosen salah");
-   return res.json({room,role:"lecturer",className:meta.className,token:sign({room,role:"lecturer"})});
+   return res.json({room,role:"lecturer",className:meta.className,token:sign({room,role:"lecturer",rev:meta.rev||0})});
   }
   const group=String(p.group||"").padStart(2,"0");
   if(!validGroup(group)||!plain(p.pin,64)||p.pin.length<6)return failure(res,400,"Group 1–19 dan PIN minimal 6 karakter diperlukan");
   const claimPath="fl4/"+room+"/claims/"+group+".json";
-  let claim=await readKey(claimPath);
-  if(!claim){try{await writeKey(claimPath,{group,pin:makeHash(p.pin),createdAt:Date.now()});}catch{return failure(res,409,"Slot kelompok baru saja diklaim; masuk dengan PIN kelompok tersebut")}claim=await readKey(claimPath)}
+  let claim=await readWithRetry(claimPath,2);
+  if(!claim){try{await saveAndVerify(claimPath,{group,pin:makeHash(p.pin),createdAt:Date.now(),rev:0});}catch{return failure(res,409,"Slot sudah terdaftar atau penyimpanan gagal; hubungi dosen untuk reset PIN")}claim=await readWithRetry(claimPath)}
   if(!claim||!checkHash(p.pin,claim.pin))return failure(res,403,"PIN kelompok salah");
-  return res.json({room,group,role:"founder",className:meta.className,token:sign({room,group,role:"founder"})});
+  return res.json({room,group,role:"founder",className:meta.className,token:sign({room,group,role:"founder",rev:claim.rev||0})});
  }
  const user=token(req);if(!user)return failure(res,401,"Login diperlukan atau sesi berakhir");
+ const currentMeta=await readWithRetry("fl4/"+user.room+"/meta.json",2);
+ if(!currentMeta)return failure(res,401,"Ruang tidak lagi tersedia. Login ulang melalui kode kelas.");
+ if(user.role==="lecturer"&&(user.rev||0)!==(currentMeta.rev||0))return failure(res,401,"PIN dosen telah direset. Login ulang.");
+ if(user.role==="founder"){
+   const currentClaim=await readWithRetry("fl4/"+user.room+"/claims/"+user.group+".json",2);
+   if(!currentClaim||(user.rev||0)!==(currentClaim.rev||0))return failure(res,401,"PIN kelompok direset. Login dengan PIN terbaru.");
+ }
  const base="fl4/"+user.room+"/";
- if(op==="state"&&req.method==="GET"){
+ 
+ if(op==="resetGroupPins"&&req.method==="POST"){
+  if(user.role!=="lecturer")return failure(res,403,"Hanya dosen boleh mereset akun kelompok");
+  if(p.confirm!=="RESET 19 PINS")return failure(res,400,"Konfirmasi reset semua PIN diperlukan");
+  const pins=[];
+  for(let i=1;i<=19;i++){
+   const group=String(i).padStart(2,"0"),key=base+"claims/"+group+".json";
+   const prior=await readWithRetry(key,1);
+   const newPin=randomBytes(9).toString("base64url");
+   await saveAndVerify(key,{group,pin:makeHash(newPin),createdAt:prior?.createdAt||Date.now(),rev:(prior?.rev||0)+1},true);
+   pins.push({group,pin:newPin});
+  }
+  return res.json({ok:true,room:user.room,pins,message:"19 PIN direset. Perusahaan dan seluruh riwayat keputusan tetap tersimpan."});
+ }
+if(op==="state"&&req.method==="GET"){
   const group=user.role==="founder"?user.group:String(req.query.group||"");
   if(group){
    if(!validGroup(group)||user.role==="founder"&&group!==user.group)return failure(res,403,"Tidak berhak melihat kelompok lain");

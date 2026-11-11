@@ -100,6 +100,12 @@ export function evolve(s,e,room){
   const fairness=r.salary?salary/r.salary:1;
   s.employees.push({id,role:p.role,name:String(p.name||r.label).slice(0,34),salary,marketSalary:r.salary,skill:r.skill,energy:78,morale:clip(Math.round(74+(fairness-1)*24),20,95),x,y,taskId:null,approvedTasks:0,reworks:0});
   money(s,"Recruitment · "+r.label+" · negotiated salary Rp"+salary+"m",-fee,e);log(s,e,"Hired "+r.label+" · salary Rp"+salary+"m/month");break;}
+ case "changeSalary":{const w=s.employees.find(w=>w.id===p.employee);if(!w)break;
+   const next=round(n(p.salary,w.salary));if(!Number.isFinite(next)||next<0||next>1000000000)break;
+   const previous=w.salary;w.salary=next;
+   const r=ROLES[w.role]?.salary||1;
+   w.morale=clip(w.morale+(next>previous?Math.round(Math.min(12,(next-previous)/r*12)):next<previous?-8:0),5,100);
+   log(s,e,"Salary renegotiated · "+w.name+": Rp"+previous+"m → Rp"+next+"m/month");break;}
  case "fire":{const w=s.employees.find(w=>w.id===p.employee);if(!w)break;
   if(w.taskId){const task=s.tasks.find(t=>t.id===w.taskId);if(task&&!task.done){task.status="unassigned";task.owner=null}}
   money(s,"Severance · "+w.name,-round(w.salary*.5),e);s.employees=s.employees.filter(x=>x.id!==w.id);log(s,e,"Released "+w.name);break;}
@@ -107,7 +113,7 @@ export function evolve(s,e,room){
   s.tasks.push({id:e.id,type:p.task,title:t.title,owner:w.id,progress:0,goal:t.points,done:false,status:"working",qualityScore:null,openIssues:0,reworkCount:0,weeklyReports:[],reviewHistory:[]});
   w.taskId=e.id;money(s,"Project budget · "+t.title,-t.cost,e);log(s,e,"Started "+t.title);break;}
  case "reassignTask":{const task=s.tasks.find(t=>t.id===p.task&&t.status==="unassigned"),w=s.employees.find(w=>w.id===p.employee&&!w.taskId);
-  if(task&&w){task.owner=w.id;task.status="working";w.taskId=task.id;log(s,e,"Reassigned "+task.title+" to "+w.name)}break;}
+  if(task&&w){task.owner=w.id;task.status=task.openIssues>0?"rework":"working";if(task.progress>=task.goal)task.progress=Math.max(0,task.goal-50);w.taskId=task.id;log(s,e,"Reassigned "+task.title+" to "+w.name+" for "+(task.openIssues>0?"defect remediation":"delivery"))}break;}
  case "week":{if(s.week>4||s.bankrupt)break;
   for(const w of s.employees){if(!w.taskId)continue;const task=s.tasks.find(t=>t.id===w.taskId);
    if(!task||!["working","rework"].includes(task.status))continue;

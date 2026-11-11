@@ -5,6 +5,13 @@ import {get,put,list} from '@vercel/blob';
 import {replay,ROLES,TASKS,CHANNELS,INDUSTRIES,KPI_METRICS} from '../lib/sim.js';
 const alphabet="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const rid=()=>randomBytes(10).toString("hex");
+let lastEventTimestamp=0;
+function nextEventTimestamp(){
+ const now=Date.now()*1000+Number(process.hrtime.bigint()%1000n);
+ lastEventTimestamp=Math.max(now,lastEventTimestamp+1);
+ return lastEventTimestamp;
+}
+
 const code=()=>Array.from(randomBytes(8),x=>alphabet[x%alphabet.length]).join("");
 const num=(x,a,b)=>Number.isFinite(+x)&&+x>=a&&+x<=b;
 const plain=(x,n=200)=>typeof x==="string"&&x.trim().length>0&&x.length<=n;
@@ -164,7 +171,13 @@ if(op==="state"&&req.method==="GET"){
   if(type==="pressure"&&(!plain(d.text,900)||!num(d.deadline,1,6)||!KPI_METRICS[d.metric]||d.target===""||!num(d.target,0,1000000000)))return failure(res,400,"Tekanan investor wajib memiliki KPI terukur, target numerik, deadline 1–6 bulan dan instruksi");
   if(user.role==="lecturer"&&(type==="pressure"||type==="offer")&&!((await stateFor(user.room,target)).company))return failure(res,409,"Kelompok belum mendirikan startup; kirim instruksi setelah startup dibuat");
   if(type==="shock"&&(!num(d.multiplier,.35,1.6)||!num(d.duration,1,6)))return failure(res,400,"Market shock tidak valid");
-  const event={id:rid(),ts:Date.now(),type,data:d,group:user.group||null,target};
+  let eventTs=nextEventTimestamp();
+  if(user.role==="lecturer"){
+   const previous=(await findKeys(base+"board/")).map(k=>Number(k.match(/\/(\d+)-[0-9a-f]+\.json$/)?.[1]||0));
+   if(previous.length)eventTs=Math.max(eventTs,Math.max(...previous)+1);
+   lastEventTimestamp=Math.max(eventTs,lastEventTimestamp);
+  }
+  const event={id:rid(),ts:eventTs,type,data:d,group:user.group||null,target};
   const file=base+(user.role==="lecturer"?"board/":"events/"+user.group+"/")+String(event.ts)+"-"+event.id+".json";
   await writeKey(file,event);
   return res.json({ok:true,eventId:event.id});

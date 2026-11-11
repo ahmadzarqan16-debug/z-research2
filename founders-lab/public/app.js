@@ -73,7 +73,7 @@ function safeRole(r){return overview?.catalog?.roles?.[r]||{label:r||'Employee',
 
 function people(s){
  const catalog=overview?.catalog?.roles||{};
- const roster=s.employees.length?s.employees.map(w=>'<div class="listline"><div class="row"><span class="face" style="background:'+safeRole(w.role).color+'">'+escapeHTML(w.name[0]||'?')+'</span><div><b>'+escapeHTML(w.name)+'</b><p>'+escapeHTML(safeRole(w.role).label)+' · Skill '+w.skill+'/10 · Morale '+w.morale+'% · Energy '+w.energy+'%</p><p>Pay '+idr(w.salary)+' /month · Reference '+idr(safeRole(w.role).salary)+'</p><button class="btn sm secondary" data-worker="'+w.id+'">Inspect output</button></div></div><div class="row"><span class="pill">'+idr(w.salary)+'</span><button class="btn sm danger" data-fire="'+w.id+'">Fire</button></div></div>').join(''):'<div class="empty">No employees yet.</div>';
+ const roster=s.employees.length?s.employees.map(w=>'<div class="listline"><div class="row"><span class="face" style="background:'+safeRole(w.role).color+'">'+escapeHTML(w.name[0]||'?')+'</span><div><b>'+escapeHTML(w.name)+'</b><p>'+escapeHTML(safeRole(w.role).label)+' · Skill '+w.skill+'/10 · Morale '+w.morale+'% · Energy '+w.energy+'%</p><p>Pay '+idr(w.salary)+' /month · Reference '+idr(safeRole(w.role).salary)+'</p><button class="btn sm secondary" data-worker="'+w.id+'">Inspect output</button> <button class="btn sm secondary" data-salary="'+w.id+'">Adjust Salary</button></div></div><div class="row"><span class="pill">'+idr(w.salary)+'</span><button class="btn sm danger" data-fire="'+w.id+'">Fire</button></div></div>').join(''):'<div class="empty">No employees yet.</div>';
  const market=Object.entries(catalog).map(([id,r])=>'<div class="listline"><div class="row"><div class="face" style="background:'+r.color+'">'+escapeHTML(r.label[0])+'</div><div><b>'+escapeHTML(r.label)+'</b><p>Skill '+r.skill+'/10 · '+escapeHTML(r.team)+'</p><p>Salary benchmark '+idr(r.salary)+' /month</p></div></div><button class="btn sm secondary" data-hire="'+id+'">Negotiate salary</button></div>').join('');
  return '<section class="section"><div class="row between"><div><h2 class="section-title">Talent Marketplace</h2><p class="muted">Set your own salary. A low offer can harm morale and quality; a high offer reduces runway.</p></div>'+btn('hire','+ Negotiate & Hire','dark')+'</div></section><div class="grid two section"><div>'+card('Employee roster',roster)+card('Payroll exposure',metric('Committed salary per month',idr(s.payroll),'Deducted on each monthly close')+'<p class="muted">Recruitment costs 30% of the negotiated monthly salary. The reference salary is guidance, not a fixed price.</p>')+'</div><div>'+card('Talent candidates · salary negotiable',market)+'</div></div>';
 }
@@ -167,6 +167,11 @@ switch(type){
  metric('Approved deliveries',w.approvedTasks||0)+'</div>'+
  '<hr class="divider">'+(projects.map(t=>taskAuditCard(t,state,user.role==='lecturer')).join('')||'<div class="empty">No projects assigned to this employee yet.</div>');
  break;}
+ case 'changeSalary':{
+  const w=state.employees.find(x=>x.id===pre.id);if(!w){notify('Employee not found',true);return}
+  title='Renegotiate Salary · '+w.name;help='Change the monthly pay. Changes affect future payroll and may improve or damage morale.';
+  html='<input type="hidden" name="employee" value="'+escapeHTML(w.id)+'">'+field('salary','New monthly salary (Rp million)','number','e.g. 12.5',w.salary,'min="0" step="0.01" max="1000000000"');
+  break;}
  case 'reassign':title='Reassign Unfinished Project';help='Assign a project to an available employee after the previous worker was released.';html='<input type="hidden" name="task" value="'+escapeHTML(pre.id)+'">'+pick('employee','Available employee',state.employees.filter(w=>!w.taskId).map(w=>[w.id,w.name]));break;
  case 'resetPins':title='Reset All 19 Group PINs';help='Tindakan ini mengganti PIN seluruh kelompok dan mencabut sesi founder lama. Startup, keuangan, proyek, dan riwayat tetap tersimpan. Unduh CSV PIN baru sesudah konfirmasi.';html=field('confirm','Type RESET 19 PINS to confirm','text','RESET 19 PINS');break;
  case 'hire':title='Negotiate Salary & Recruit';help='Enter any non-negative monthly salary in Rp millions (zero allowed). Benchmark is only a reference. Your pay offer affects payroll, morale and work QA. Onboarding costs 30% of chosen salary.';html=pick('role','Job role',Object.entries(roles).map(([k,r])=>[k,r.label+' · benchmark '+idr(r.salary)]))+field('name','Employee name','text','e.g. Maya Hartono')+field('salary','Your proposed monthly salary (Rp million)','number','e.g. 8.75',roles[pre.role||'engineer']?.salary??8,'min="0" step="0.01" max="1000000000"')+'<div id="salary-preview" class="alert good">Your salary decision changes team morale and profit.</div>';break;
@@ -194,6 +199,7 @@ const ans=e.target.closest('[data-answer]');if(ans)return chooseModal('answer',{
 const accept=e.target.closest('[data-accept]');if(accept){if(confirm('Accept term sheet? Your founders’ equity will be diluted.'))act('accept',{offer:accept.dataset.accept});return}
 const reject=e.target.closest('[data-reject]');if(reject)return act('reject',{offer:reject.dataset.reject});
 const worker=e.target.closest('[data-worker]');if(worker)return chooseModal('worker',{id:worker.dataset.worker});
+const salary=e.target.closest('[data-salary]');if(salary)return chooseModal('changeSalary',{id:salary.dataset.salary});
 const review=e.target.closest('[data-review]');if(review)return act('reviewWork',{task:review.dataset.review});
 const rework=e.target.closest('[data-rework]');if(rework){if(confirm('Request rework? It costs 20% of the original project budget and another work week.'))return act('rework',{task:rework.dataset.rework});return}
 const reassign=e.target.closest('[data-reassign]');if(reassign)return chooseModal('reassign',{id:reassign.dataset.reassign});
@@ -226,7 +232,7 @@ if(form.dataset.form==='modal'&&form.dataset.type==='resetPins'){
  const result=await request('resetGroupPins',{confirm:d.confirm});
  closeModal();showRecoveredPins(result.pins);return;
 }
-if(form.dataset.form==='modal'){const type={hire:'hire',task:'task',reassign:'reassignTask',campaign:'campaign',price:'price',journal:'note',funding:'fundingRequest',offer:'offer',pressure:'pressure',shock:'shock',answer:'answer'}[form.dataset.type];if(type)return act(type,d)}
+if(form.dataset.form==='modal'){const type={hire:'hire',changeSalary:'changeSalary',task:'task',reassign:'reassignTask',campaign:'campaign',price:'price',journal:'note',funding:'fundingRequest',offer:'offer',pressure:'pressure',shock:'shock',answer:'answer'}[form.dataset.type];if(type)return act(type,d)}
 }catch(err){notify(err.message,true)}});
 function startCanvas(s){stopCanvas();canvas=document.getElementById('world');if(!canvas)return;avatar={...s.avatar};target=null;const ctx=canvas.getContext('2d');const w=canvas.width,h=canvas.height;
 function polygon(points,fill,stroke){ctx.beginPath();ctx.moveTo(...points[0]);for(const p of points.slice(1))ctx.lineTo(...p);ctx.closePath();ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.stroke()}}

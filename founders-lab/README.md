@@ -57,3 +57,19 @@ Do not reset the 19 group PINs unless you intend to revoke old group access. Do 
 
 Class creation is now **write-and-verify**; the server does not return a new room code unless it can read the stored class metadata back. The health endpoint `GET /api/game?op=health` checks that private storage is readable without revealing class codes.
 
+
+## Update: custom compensation, employee quality assurance and enforceable investor pressure
+
+**Hire & compensation:** Founder enters any non-negative salary (simulation units: Rp million per month; 0 allowed, up to the safe numeric application limit). The role's reference salary is a benchmark, not the amount automatically charged. Recruitment costs 30% of the negotiated salary. Monthly payroll and morale respond to this value. Founder can renegotiate salary later from Team & Hiring.
+
+**Inspect employee work:** Projects now have states Working → Pending Quality Review → Approved or Needs Rework. Each work week generates a deterministic per-employee report with work points, QA score, defects and an observation. Founder can click Inspect Output and view the reports. The Product & Sprint QA view allows running final QA. A project with 100% progress produces no automatic product-quality reward until approved; failed review requires explicit rework, incurs a further 20% of the project budget and additional work time. If a worker is released, unfinished work can be reassigned. Lecturer inspection shows exactly the same work evidence, but remains read-only.
+
+**Investor pressure:** Lecturer selects a group, measurable KPI (revenue, burn, payroll, cash, paying customers, quality, runway or approved projects), numeric target, deadline in simulation months and a written directive. On every monthly close the simulation engine evaluates the *measured state*. Passing increases investor confidence. Failure reduces confidence by 25, freezes acceptance of new investment for two simulation months, and adds an 18% demand shock. Written responses are recorded but do not automatically satisfy KPI. Lecturer may lift a funding freeze; the decision is logged.
+
+**Display:** Founders see urgent investor ultimatum banners in their office, with target, current value and remaining time. Investor Boardroom displays outcome and consequences. Lecturer can inspect each group's salaries, work logs, defects and board history.
+
+**Determinism and accounting:** Randomness is seeded. Decisions are saved as append-only private events. Investor events receive microsecond-resolution monotonic timestamps so pressure cannot be reordered after the immediately following monthly advance within the same millisecond. Old events remain readable.
+
+**Tests:** Run `npm test`. Tests cover salary input and renegotiation, unfinished-work reassignment, weekly quality evidence, deterministic simulation, monthly cash ledger, investor freeze and release, API role enforcement, and 19 team isolation.
+
+**Operational note:** The Vercel project uses private Vercel Blob. Multiple functions and repeated list reads can still experience concurrency/load limits. Test the classroom with 19 laptops before an assessed session. This remains a 2.5D office simulation, not physically realistic 3D employee behaviour.

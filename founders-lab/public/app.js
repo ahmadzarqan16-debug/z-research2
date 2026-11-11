@@ -129,6 +129,7 @@ if(form.dataset.form==='modal'&&form.dataset.type==='recoverFinal'){
  const login=await request('resetLecturer',{room:d.room,newPin:d.newPin,setupKey:recoverySetupKey});
  recoverySetupKey='';recoveredRooms=[];closeModal();saveLogin({room:login.room,role:'lecturer',token:login.token});notify('Lecturer PIN updated; recovered classroom '+login.room);return;
 }
+if(form.dataset.form==='modal'&&form.dataset.type==='pinsResult'){closeModal();return;}
 if(form.dataset.form==='modal'&&form.dataset.type==='resetPins'){
  if(d.confirm!=='RESET 19 PINS')throw Error('Type RESET 19 PINS exactly');
  const result=await request('resetGroupPins',{confirm:d.confirm});

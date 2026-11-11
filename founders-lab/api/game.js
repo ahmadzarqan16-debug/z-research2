@@ -18,7 +18,7 @@ function makeHash(pin){const salt=randomBytes(12).toString("hex");return salt+":
 async function readKey(k){if(local){try{return JSON.parse(await fs.readFile(path.join(dir,k),"utf8"))}catch{return null}}
  const response=await get(k,{access:"private",useCache:false,token:process.env.BLOB_READ_WRITE_TOKEN});if(!response||response.statusCode!==200)return null;return JSON.parse(await new Response(response.stream).text());}
 async function writeKey(k,obj,{overwrite=false}={}){if(local){const f=path.join(dir,k);await fs.mkdir(path.dirname(f),{recursive:true});await fs.writeFile(f,JSON.stringify(obj),"utf8");return}
- await put(k,JSON.stringify(obj),{access:"private",addRandomSuffix:false,contentType:"application/json",allowOverwrite,token:process.env.BLOB_READ_WRITE_TOKEN});}
+ await put(k,JSON.stringify(obj),{access:"private",addRandomSuffix:false,contentType:"application/json",allowOverwrite:overwrite,token:process.env.BLOB_READ_WRITE_TOKEN});}
 async function findKeys(prefix){if(local){const all=[];async function walk(p){let children=[];try{children=await fs.readdir(p,{withFileTypes:true})}catch{return}for(const entry of children){const target=path.join(p,entry.name);if(entry.isDirectory())await walk(target);else all.push(path.relative(dir,target))}}await walk(path.join(dir,prefix));return all.sort()}
  let cursor;const paths=[];do{const out=await list({prefix,limit:1000,cursor,token:process.env.BLOB_READ_WRITE_TOKEN});paths.push(...out.blobs.map(b=>b.pathname));cursor=out.hasMore?out.cursor:null;}while(cursor&&paths.length<4500);return paths;}
 const secret=()=>process.env.SESSION_SECRET||(local?"founders-lab-local-dev-rotate-in-production":"");

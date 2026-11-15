@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /
+# Staging / not yet authorized for official indexing.
+# Publish sitemap and allow indexing only once approved.
+Sitemap: https://hidayatullahmdn.ponpes.id/sitemap.xml

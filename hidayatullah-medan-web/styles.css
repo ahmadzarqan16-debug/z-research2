@@ -6,3 +6,83 @@
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
 
 .registration-info{margin-top:72px}.reg-info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:17px}.reg-info-card{padding:26px;background:white;border:1px solid #e1e9da;border-radius:21px;box-shadow:0 8px 24px #16432b08}.reg-info-card>span{font:900 10px Nunito,sans-serif;color:#46915a;letter-spacing:.1em}.reg-info-card h3{font-size:21px;margin:15px 0 10px}.reg-info-card p{color:#718075;font-size:12px;min-height:111px}.reg-info-card strong{display:block;border-top:1px solid #e7eae1;padding-top:14px;font-size:11px;color:#9a793a}@media(max-width:800px){.reg-info-grid{grid-template-columns:1fr}.reg-info-card p{min-height:auto}}
+
+/* Hidayatullah Medan visual editorial and photo gallery v3 */
+.brand-logo {width:47px;height:47px;min-width:47px;display:flex;align-items:center;justify-content:center;background:white;border:2px solid rgba(0,73,50,.1);border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(3,45,28,.09)}
+.brand-logo img{display:block;width:100%;height:100%;object-fit:contain}
+.brand-light .brand-logo {background:#fff}
+.photos-section {background:#fffdf7}
+.real-photo-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+.real-photo-card {margin:0;background:#fff;border:1px solid #e7eadf;border-radius:22px;overflow:hidden;box-shadow:0 16px 40px rgba(23,64,42,.07);transition:transform .25s ease,box-shadow .25s ease}
+.real-photo-card:hover{transform:translateY(-5px);box-shadow:0 22px 48px rgba(23,64,42,.12)}
+.real-photo-media {height:240px;display:block;position:relative;overflow:hidden;background:#e9f0e4}
+.real-photo-media img {width:100%;height:100%;object-fit:cover;transition:transform .5s ease}
+.real-photo-card:hover img{transform:scale(1.05)}
+.photo-chip {position:absolute;top:15px;left:15px;background:#fffefa;color:#145336;font-weight:800;padding:8px 13px;border-radius:100px;font-size:.75rem;box-shadow:0 2px 15px #001f151a}
+.real-photo-card figcaption{padding:22px}
+.real-photo-card h3{font-family:Nunito,sans-serif;font-size:1.19rem;line-height:1.3;margin:7px 0;color:#133f30}
+.real-photo-card p{font-size:.91rem;line-height:1.6;color:#57685c;margin:0 0 14px}
+.real-photo-card small{font-size:.79rem;color:#6b786e}
+.real-photo-card small a{color:#218a62;font-weight:800;text-decoration:underline}
+.photo-date{font-size:.76rem;color:#28805c;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.photo-copyright{font-size:.77rem;color:#687467;line-height:1.6;margin:18px 3px 0;max-width:1000px}
+.real-photo-card.photo-fallback .photo-chip {background:#f8e8cc}
+.real-photo-card.photo-fallback .photo-chip::after{content:' (ilustrasi pengganti)'}
+.facilities-section{background:#eef7ed}
+.facility-feature{display:grid;grid-template-columns:1.15fr 1fr;background:#fff;border-radius:26px;overflow:hidden;box-shadow:0 18px 48px #003e2114}
+.facility-video{position:relative;min-height:355px;background:#123d31;overflow:hidden;display:block}
+.facility-video img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;filter:saturate(.8);opacity:.94}
+.facility-video::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,#032e2300 45%,#032e239e)}
+.play-bubble{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:76px;height:76px;background:#c6eb45;color:#154532;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:1.8rem;z-index:2;box-shadow:0 10px 30px #001a2448;transition:transform .2s}
+.facility-video:hover .play-bubble{transform:translate(-50%,-50%) scale(1.1)}
+.video-label{position:absolute;bottom:25px;left:28px;color:#fff;font-size:.79rem;font-weight:900;letter-spacing:.08em;z-index:2}
+.facility-copy{padding:44px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:12px}
+.facility-copy h3{font-family:Nunito,sans-serif;font-weight:900;font-size:clamp(1.6rem,2.5vw,2.45rem);line-height:1.17;letter-spacing:-.035em;color:#154433;margin:0}
+.facility-copy p{font-size:.96rem;color:#566b5b;line-height:1.75;margin:0}
+.facility-copy small{font-size:.75rem;line-height:1.5;color:#657369;margin-top:7px}
+.facility-pills{display:flex;flex-wrap:wrap;gap:7px;margin:5px 0}
+.facility-pills span{border-radius:100px;background:#e7f5e3;color:#1b5d37;font-weight:800;font-size:.76rem;padding:8px 13px}
+.facility-notice{margin-top:22px;display:flex;align-items:flex-start;gap:17px;background:#fff;color:#234e38;padding:22px 26px;border-radius:17px;border:1px dashed #b0cdb4}
+.facility-notice>span{font-size:1.7rem}
+.facility-notice strong{font-family:Nunito,sans-serif;font-size:1rem}
+.facility-notice p{margin:4px 0 0;color:#54705b;font-size:.87rem;line-height:1.6}
+.about-real-photo img{object-fit:cover;width:100%;height:100%;max-height:440px;border-radius:20px}
+.about-real-photo span{z-index:2;background:#fff;margin:5px;max-width:95%;color:#234534}
+.about-real-photo span a{color:#178c60}
+.blog-section,.blog-home{background:#fffdfa}
+.blog-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+.blog-card{background:white;text-decoration:none;color:inherit;border-radius:23px;border:1px solid #e7ecdf;overflow:hidden;box-shadow:0 10px 40px #20443311;display:flex;flex-direction:column;transition:transform .2s,box-shadow .2s}
+.blog-card:hover{transform:translateY(-5px);box-shadow:0 18px 45px #20443326}
+.blog-thumb{height:190px;position:relative;overflow:hidden;background:#eaf3e7}
+.blog-thumb img{width:100%;height:100%;object-fit:cover}
+.blog-thumb span{position:absolute;top:14px;left:15px;background:#edfdd7;color:#245b3c;border-radius:100px;padding:8px 13px;font-size:.75rem;font-weight:800}
+.blog-card-body{padding:24px;display:flex;flex-direction:column;flex:1}
+.blog-card-body small{font-weight:800;font-size:.75rem;color:#528067}
+.blog-card-body h3{font-family:Nunito,sans-serif;font-size:1.18rem;line-height:1.35;color:#133e30;margin:12px 0}
+.blog-card-body p{color:#52675c;line-height:1.6;font-size:.87rem;margin:0 0 16px;flex:1}
+.blog-card-body strong{color:#267954;font-size:.85rem}
+.newsletter-section{background:#0a3f2e;padding:65px 0;position:relative;overflow:hidden}
+.newsletter-panel{position:relative;display:grid;grid-template-columns:1fr 1.05fr;align-items:center;gap:55px;color:white;max-width:1150px}
+.newsletter-panel .eyebrow{color:#d4ee80}
+.newsletter-panel h2{font-family:Nunito,sans-serif;font-weight:900;font-size:clamp(2rem,3vw,3.05rem);letter-spacing:-.04em;line-height:1.14;margin:15px 0}
+.newsletter-panel p{font-size:.96rem;line-height:1.72;color:#d0e6d6}
+.newsletter-stars{position:absolute;right:4px;top:-40px;font-size:3rem;opacity:.1;pointer-events:none}
+.newsletter-form{position:relative;background:#fff;border-radius:20px;padding:28px;color:#193e30;box-shadow:0 16px 35px #001f174d}
+.newsletter-form>label:first-child{font-weight:900;font-size:.89rem}
+.newsletter-input-row{display:flex;gap:10px;margin:12px 0}
+.newsletter-input-row input{flex:1;min-width:0;border:1px solid #cdddce;border-radius:12px;padding:15px;font-family:inherit;font-size:.9rem;background:#fbfdf9}
+.newsletter-input-row button{white-space:nowrap}
+.newsletter-consent{display:flex;gap:9px;align-items:flex-start;font-size:.77rem;color:#667969;line-height:1.6}
+.newsletter-consent input{margin-top:4px;accent-color:#228758}
+.newsletter-status{font-size:.75rem!important;color:#667969!important;margin:12px 0 0!important}
+@media(max-width:1000px){.real-photo-grid,.blog-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.facility-feature{grid-template-columns:1fr 1fr}.facility-copy{padding:28px}.newsletter-panel{gap:24px}}
+@media(max-width:700px){.brand-logo{width:40px;height:40px;min-width:40px}.real-photo-grid,.blog-grid,.facility-feature,.newsletter-panel{grid-template-columns:1fr}.real-photo-media{height:240px}.facility-video{min-height:255px}.facility-copy{padding:28px}.newsletter-section{padding:40px 0}.newsletter-form{padding:22px}.newsletter-input-row{flex-direction:column}.newsletter-input-row .btn{width:100%;text-align:center}.about-real-photo img{max-height:280px}.photo-copyright{font-size:.72rem}}
+
+/* Images loaded from external credited publishers: show illustrated poster if CDN is unavailable */
+.real-photo-media{background-image:url('/assets/hero.svg');background-size:cover;background-position:center}
+.real-photo-media::before{content:'Foto dokumentasi • lihat sumber';position:absolute;left:14px;bottom:12px;z-index:0;padding:8px 12px;border-radius:100px;background:#ffffffd9;color:#28513f;font-size:.68rem;font-weight:800}
+.real-photo-media img{position:relative;z-index:1}
+.real-photo-media .photo-chip{z-index:2}
+.facility-video{background-image:url('/assets/hero.svg');background-position:center;background-size:cover}
+.brand-logo{background-image:url('/assets/icon.svg');background-repeat:no-repeat;background-size:contain;background-position:center}
+.brand-logo img{position:relative}

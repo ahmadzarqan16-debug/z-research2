@@ -262,5 +262,5 @@ raf=requestAnimationFrame(movement)}
 function debouncePosition(){if(saveMovementTimer)clearTimeout(saveMovementTimer);saveMovementTimer=setTimeout(()=>{if(avatar&&user?.role==='founder'){request('action',{type:'move',data:{x:Math.round(avatar.x),y:Math.round(avatar.y)}}).catch(()=>{})}},1250)}
 window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;if(view==='office'&&user?.role==='founder'&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d'].includes(e.key)){e.preventDefault();keys[e.key]=true}});
 window.addEventListener('keyup',e=>{keys[e.key]=false});
-setInterval(()=>{if(user&&!modal&&document.visibilityState==='visible')refresh()},16000);
+setInterval(()=>{if(user&&!modal&&document.visibilityState==='visible')refresh()},120000);
 render();if(user)refresh();
